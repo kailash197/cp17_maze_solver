@@ -1,0 +1,296 @@
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 3.783024732443698e-12
+  y: 4.970994638198596e-15
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 1.35063497053326e-14
+  w: 1.0
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 0.26987711264127245
+  y: 1.3004705434187471e-14
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 1.4223303612235248e-14
+  w: 1.0
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 0.26987711264297043
+  y: 4.0410524129375327e-13
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.15626227436456402
+  w: 0.987715597533224
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 0.49754142688649444
+  y: -0.073884869884127
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.15626227436453521
+  w: 0.9877155975332286
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 1.404805556511132
+  y: -0.8426273014116011
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.34427631231078937
+  w: 0.9388683724472158
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 1.4048055565120927
+  y: -0.8426273014112741
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.003138100809141007
+  w: 0.9999950761495336
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 1.931996974518774
+  y: -0.8459361099184104
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.0031381008091448184
+  w: 0.9999950761495336
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 1.931996974519284
+  y: -0.8459361099188156
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.3501620298556664
+  w: 0.9366891441921164
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 2.2967549037635053
+  y: -0.5289188860745286
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.3501620298556664
+  w: 0.9366891441921164
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 2.296754903783764
+  y: -0.528918886085055
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.015689885995858605
+  w: 0.9998769061626721
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 2.738329495685669
+  y: -0.5427805151496519
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.015689885995858622
+  w: 0.9998769061626721
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 2.7383294956863993
+  y: -0.5427805151502368
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.33246442574141843
+  w: 0.943115796504559
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 3.1865598467257947
+  y: -0.18191918641225266
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.3324644257414184
+  w: 0.9431157965045591
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 3.1865598467264316
+  y: -0.18191918641244234
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.03297508073837367
+  w: 0.9994561741518723
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 3.7353369792042748
+  y: -0.21817028048697815
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: -0.032975080738373685
+  w: 0.9994561741518723
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 3.73533697920481
+  y: -0.21817028048727202
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.3159911275029475
+  w: 0.9487621447651756
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.453604167724283
+  y: 0.3199704567198333
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.31599112750294783
+  w: 0.9487621447651755
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.453604167724551
+  y: 0.3199704567190531
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.6282540925309815
+  w: 0.7780082231044045
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.563281688993316
+  y: 0.8290926009042828
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.6282540925309761
+  w: 0.7780082231044089
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.563281688974726
+  y: 0.8290926008728571
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.8703338399664536
+  w: 0.49246218840561495
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.369424801787991
+  y: 1.1517895207556446
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.8703338399664536
+  w: 0.49246218840561495
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.369424801787872
+  y: 1.151789520755037
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.6403836186449864
+  w: 0.7680552200012397
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.450682103010958
+  y: 1.59631099973331
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.6403836186450048
+  w: 0.7680552200012243
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.450682103045464
+  y: 1.5963109997381126
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.46320346893990433
+  w: 0.8862519655053178
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.675356086330239
+  y: 1.919430443574618
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.4632034689399039
+  w: 0.886251965505318
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.675356086330235
+  y: 1.919430443574176
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.6247057714441842
+  w: 0.7808602302104563
+---
+user:~/ros2_ws$ ros2 topic echo /rosbot_xl_base_controller/odom --field pose.pose --once
+position:
+  x: 4.814136133880615
+  y: 2.5363097718325736
+  z: 0.0
+orientation:
+  x: 0.0
+  y: 0.0
+  z: 0.6247057714441842
+  w: 0.7808602302104563
