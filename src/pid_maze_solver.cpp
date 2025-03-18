@@ -1,3 +1,7 @@
+#include "ament_index_cpp/get_package_share_directory.hpp"
+#include "ament_index_cpp/get_package_share_directory.hpp" // Include this header
+#include "yaml-cpp/yaml.h" // include the yaml library
+#include <filesystem>      // Include the filesystem library
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -44,6 +48,7 @@ private:
   std::vector<std::vector<double>> waypoints_; //{dx, dy, dphi}
 
   void SelectWaypoints();
+  void readWaypointsYAML();
   void pid_controller();
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
@@ -67,7 +72,7 @@ public:
 };
 
 PIDMazeSolver::~PIDMazeSolver() {
-  RCLCPP_INFO(this->get_logger(), "Turn Controller Terminated.");
+  RCLCPP_INFO(this->get_logger(), "Maze Solver Terminated.");
 }
 
 void PIDMazeSolver::odom_callback(
@@ -108,7 +113,10 @@ PIDMazeSolver::PIDMazeSolver(int scene_number)
       std::bind(&PIDMazeSolver::odom_callback, this, std::placeholders::_1),
       options);
 
-  SelectWaypoints();
+  //   SelectWaypoints();
+  // Read waypoints from YAML file & update waypoints vector
+  readWaypointsYAML();
+
   /* https://husarion.com/manuals/rosbot-xl/
   Maximum translational velocity = 0.8 m/s
   Maximum rotational velocity = 180 deg/s (3.14 rad/s)
@@ -132,6 +140,11 @@ void PIDMazeSolver::pid_controller() {
   double error, distance;
   geometry_msgs::msg::Twist twist;
   RCLCPP_INFO(this->get_logger(), "Trajectory started.");
+  RCLCPP_INFO(this->get_logger(), "Waypoints: size: %zu", waypoints_.size());
+  for (size_t i = 0; i < waypoints_.size(); ++i) {
+    RCLCPP_INFO(this->get_logger(), "Waypoint %ld: [%f, %f]", i,
+                waypoints_[i][0], waypoints_[i][1]);
+  }
 
   // Loop through each waypoint
   for (const auto &waypoint : waypoints_) {
@@ -267,6 +280,59 @@ void PIDMazeSolver::SelectWaypoints() {
 
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
+  }
+}
+
+void PIDMazeSolver::readWaypointsYAML() {
+  // Get the package's share directory and append the YAML file path
+  std::string package_share_directory =
+      ament_index_cpp::get_package_share_directory("pid_maze_solver");
+
+  std::string waypoint_file_name = "";
+
+  switch (scene_number_) {
+  case 1: // Simulation
+    RCLCPP_INFO(this->get_logger(), "Welcome to Simulation!");
+    waypoint_file_name = "waypoints_sim.yaml";
+    break;
+
+  case 2: // CyberWorld
+    RCLCPP_INFO(this->get_logger(), "Welcome to CyberWorld!");
+    waypoint_file_name = "waypoints_real.yaml";
+    break;
+
+  default:
+    RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
+  }
+
+  RCLCPP_INFO(this->get_logger(), "Waypoint file loaded: %s",
+              waypoint_file_name.c_str());
+
+  std::string yaml_file_path =
+      package_share_directory + "/waypoints/" + waypoint_file_name;
+
+  // Read points from the YAML file
+  try {
+    YAML::Node config = YAML::LoadFile(yaml_file_path);
+
+    if (config["waypoints"]) {
+      for (const auto &wp : config["waypoints"]) {
+        if (wp.size() == 3) { // Ensure it's a valid waypoint
+          waypoints_.push_back(
+              {wp[0].as<double>(), wp[1].as<double>(), wp[2].as<double>()});
+        } else {
+          RCLCPP_WARN(rclcpp::get_logger("WaypointsLoader"),
+                      "Skipping invalid waypoint with incorrect size.");
+        }
+      }
+      RCLCPP_INFO(rclcpp::get_logger("WaypointsLoader"),
+                  "Successfully loaded %zu waypoints.", waypoints_.size());
+    } else {
+      RCLCPP_ERROR(rclcpp::get_logger("WaypointsLoader"),
+                   "No 'waypoints' key found in the YAML file.");
+    }
+  } catch (const YAML::Exception &e) {
+    RCLCPP_ERROR(this->get_logger(), "Failed to load YAML file: %s", e.what());
   }
 }
 
