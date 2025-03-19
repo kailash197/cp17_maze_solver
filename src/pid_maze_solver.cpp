@@ -1,7 +1,8 @@
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp" // Include this header
 #include "yaml-cpp/yaml.h" // include the yaml library
-#include <filesystem>      // Include the filesystem library
+#include <Eigen/Dense>
+#include <filesystem> // Include the filesystem library
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
@@ -50,6 +51,7 @@ private:
   void SelectWaypoints();
   void readWaypointsYAML();
   void pid_controller();
+  std::vector<double> velocity2twist(double vx, double vy, double avz);
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_publisher_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_subscriber_;
@@ -123,13 +125,31 @@ PIDMazeSolver::PIDMazeSolver(int scene_number)
   */
   max_velocity_ = 0.8;
   max_ang_velocity_ = 3.14;
-  pid_x_ = PID(1.0, 0.01, 0.20, time_step);
-  pid_y_ = PID(1.0, 0.01, 0.20, time_step);
+  pid_x_ = PID(2.0, 0.01, 0.20, time_step);
+  pid_y_ = PID(2.0, 0.01, 0.20, time_step);
   pid_z_ = PID(2.0, 0.01, 0.30, time_step);
   RCLCPP_INFO(this->get_logger(), "Maze Solver Initialized.");
 
   timer_ = this->create_wall_timer(
       1s, std::bind(&PIDMazeSolver::pid_controller, this), timer_cb_grp_);
+}
+
+std::vector<double> PIDMazeSolver::velocity2twist(double vx, double vy,
+                                                  double avz) {
+  // Create input vector
+  Eigen::Vector3d velocity(vx, vy, avz);
+
+  // Define the transformation matrix R row-wise
+  Eigen::MatrixXd R(3, 3);                      // 3x3 matrix
+  R.row(0) << 1, 0, 0;                          // Row 0
+  R.row(1) << 0, std::cos(phi), std::sin(phi);  // Row 1
+  R.row(2) << 0, -std::sin(phi), std::cos(phi); // Row 2
+
+  // Perform matrix-vector multiplication
+  Eigen::Vector3d twist = R * velocity;
+
+  // Convert Eigen::Vector3d to std::vector<double>
+  return std::vector<double>{twist(0), twist(1), twist(2)};
 }
 
 void PIDMazeSolver::pid_controller() {
@@ -140,19 +160,16 @@ void PIDMazeSolver::pid_controller() {
   double error, distance;
   geometry_msgs::msg::Twist twist;
   RCLCPP_INFO(this->get_logger(), "Trajectory started.");
-  RCLCPP_INFO(this->get_logger(), "Waypoints: size: %zu", waypoints_.size());
-  for (size_t i = 0; i < waypoints_.size(); ++i) {
-    RCLCPP_INFO(this->get_logger(), "Waypoint %ld: [%f, %f]", i,
-                waypoints_[i][0], waypoints_[i][1]);
-  }
 
   // Loop through each waypoint
+  int index = 0;
   for (const auto &waypoint : waypoints_) {
 
     dx = waypoint[0];
     dy = waypoint[1];
     dphi = waypoint[2];
-    RCLCPP_INFO(this->get_logger(), "WP: [%.2f, %.2f, %.2f]", dx, dy, dphi);
+    RCLCPP_INFO(this->get_logger(), "WP%u: [%.2f, %.2f, %.2f]", ++index, dx, dy,
+                dphi);
 
     sp_x = current_position_.x + dx;
     sp_y = current_position_.y + dy;
@@ -214,7 +231,8 @@ void PIDMazeSolver::pid_controller() {
                    u_z);
 
       // Prepare and publish the twist message
-      capped_velocities = cap_velocities(u_x, u_y, u_z);
+      auto twist_v = velocity2twist(u_z, u_x, u_y);
+      capped_velocities = cap_velocities(twist_v[1], twist_v[2], twist_v[0]);
       twist.linear.x = capped_velocities[0];
       twist.linear.y = capped_velocities[1];
       twist.angular.z = capped_velocities[2];
