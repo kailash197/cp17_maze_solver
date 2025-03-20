@@ -21,6 +21,12 @@ public:
   double compute(double setpoint, double measurement) {
     double error = setpoint - measurement;
     integral_ += error * dt_;
+    double max_integral = 1.0; // Adjust this value as needed
+    if (integral_ > max_integral)
+      integral_ = max_integral;
+    if (integral_ < -max_integral)
+      integral_ = -max_integral;
+
     double derivative = (error - prev_error_) / dt_;
     double output = kp_ * error + ki_ * integral_ + kd_ * derivative;
 
@@ -81,6 +87,15 @@ PIDMazeSolver::~PIDMazeSolver() {
   RCLCPP_INFO(this->get_logger(), "Maze Solver Terminated.");
 }
 
+// Function to normalize angle to the range -pi to pi
+double normalize_angle(double angle) {
+  while (angle > M_PI)
+    angle -= 2.0 * M_PI;
+  while (angle < -M_PI)
+    angle += 2.0 * M_PI;
+  return angle;
+}
+
 void PIDMazeSolver::odom_callback(
     const nav_msgs::msg::Odometry::SharedPtr msg) {
   // Extract position
@@ -93,7 +108,7 @@ void PIDMazeSolver::odom_callback(
   // Convert quaternion to Euler angles (roll, pitch, yaw)
   double roll, pitch, yaw;
   tf2::Matrix3x3(q).getRPY(roll, pitch, yaw);
-  phi = yaw;
+  phi = normalize_angle(yaw);
 
   // Log the position and orientation for debugging
   RCLCPP_DEBUG(this->get_logger(),
@@ -169,7 +184,7 @@ void PIDMazeSolver::pid_controller() {
 
     sp_x = current_position_.x + dx;
     sp_y = current_position_.y + dy;
-    sp_phi = phi + dphi;
+    sp_phi = normalize_angle(phi + dphi);
 
     rclcpp::Rate rate(int(1 / time_step)); // Control loop frequency
 
@@ -189,9 +204,10 @@ void PIDMazeSolver::pid_controller() {
       u_z = pid_z_.compute(sp_phi, phi);
 
       // Calculate error to the target
-      error = pid_z_.getError();
-      RCLCPP_DEBUG(this->get_logger(), "phi: %.3f, angle to target: %.3f rads",
-                   phi, error);
+      error = normalize_angle(pid_z_.getError());
+      RCLCPP_DEBUG(this->get_logger(),
+                   "phi: %.3f, sp_phi, %.3f, target: %.3f rad", phi, sp_phi,
+                   error);
       RCLCPP_DEBUG(this->get_logger(), "Position: %.3f,%.3f,%.3f",
                    current_position_.x, current_position_.y, phi);
 
