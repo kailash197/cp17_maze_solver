@@ -30,6 +30,11 @@ public:
 
   double getError() { return prev_error_; }
 
+  void reset_() {
+    integral_ = 0.0;
+    prev_error_ = 0.0;
+  }
+
 private:
   double kp_;
   double ki_;
@@ -207,6 +212,7 @@ void PIDMazeSolver::pid_controller() {
 
       rate.sleep();                // Maintain loop frequency
     } while (fabs(error) > 0.007); // Run until error is within tolerance
+    pid_z_.reset_();
 
     // 2. Move
     distance = 0.0;
@@ -248,6 +254,9 @@ void PIDMazeSolver::pid_controller() {
     twist.angular.z = 0.0;
     cmd_vel_publisher_->publish(twist);
     std::this_thread::sleep_for(std::chrono::seconds(1));
+    pid_x_.reset_();
+    pid_y_.reset_();
+    pid_z_.reset_();
   }
 
   RCLCPP_INFO(this->get_logger(), "Trajectory completed.");
