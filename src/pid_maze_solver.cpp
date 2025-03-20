@@ -53,7 +53,6 @@ private:
   double max_ang_velocity_;
   std::vector<std::vector<double>> waypoints_; //{dx, dy, dphi}
 
-  void SelectWaypoints();
   void readWaypointsYAML();
   void pid_controller();
   std::vector<double> velocity2twist(double vx, double vy, double avz);
@@ -120,19 +119,11 @@ PIDMazeSolver::PIDMazeSolver(int scene_number)
       std::bind(&PIDMazeSolver::odom_callback, this, std::placeholders::_1),
       options);
 
-  //   SelectWaypoints();
+  // Based on simulation or real bot
   // Read waypoints from YAML file & update waypoints vector
+  // And configure PID controllers
   readWaypointsYAML();
 
-  /* https://husarion.com/manuals/rosbot-xl/
-  Maximum translational velocity = 0.8 m/s
-  Maximum rotational velocity = 180 deg/s (3.14 rad/s)
-  */
-  max_velocity_ = 0.8;
-  max_ang_velocity_ = 3.14;
-  pid_x_ = PID(2.0, 0.01, 0.20, time_step);
-  pid_y_ = PID(2.0, 0.01, 0.20, time_step);
-  pid_z_ = PID(2.0, 0.01, 0.30, time_step);
   RCLCPP_INFO(this->get_logger(), "Maze Solver Initialized.");
 
   timer_ = this->create_wall_timer(
@@ -265,52 +256,12 @@ void PIDMazeSolver::pid_controller() {
   rclcpp::shutdown();
 }
 
-void PIDMazeSolver::SelectWaypoints() {
-  switch (scene_number_) {
-  case 1: // Simulation
-    // Assign waypoints for Simulation
-    RCLCPP_INFO(this->get_logger(), "Welcome to Simulation!");
-    // Waypoints: {dx,dy,dphi}
-    waypoints_ = {
-        {0.27, 0.0, 0.0},      // w1
-        {0.23, -0.07, 0.0},    // w2
-        {0.9, -0.77, 0.0},     // w3
-        {0.532, -0.005, 0.0},  // w4
-        {0.368, 0.315, 0.0},   // w5
-        {0.44, -0.012, 0.0},   // w6
-        {0.446, 0.361, 0.0},   // w7
-        {0.549, -0.0371, 0.0}, // w8
-        {0.718, 0.5381, 0.0},  // w9
-        {0.11, 0.51, 0.0},     // w10
-        {-0.193, 0.322, 0.0},  // w11
-        {0.08, 0.444, 0.0},    // w12
-        {0.225, 0.323, 0.0},   // w13
-        {0.14, 0.617, 0.0}     // w14
-    };
-    break;
-
-  case 2: // CyberWorld
-    // Assign waypoints for CyberWorld
-    RCLCPP_INFO(this->get_logger(), "Welcome to CyberWorld!");
-    waypoints_ = {
-        {0.0, 1.0, -1.0},      // w1
-        {0.0, 1.0, 1.0},       // w2
-        {0.0, 1.0, 1.0},       // w3
-        {-1.5708, 1.0, -1.0},  // w4
-        {-1.5708, -1.0, -1.0}, // w5
-        {0.0, -1.0, 1.0},      // w6
-        {0.0, -1.0, 1.0},      // w7
-        {0.0, -1.0, -1.0},     // w8
-        {0.0, 0.0, 0.0}        // Stop
-    };
-    break;
-
-  default:
-    RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
-  }
-}
-
 void PIDMazeSolver::readWaypointsYAML() {
+  /* Based on simulation or real bot
+    Read waypoints from YAML file & update waypoints vector
+    And configure PID controllers
+  */
+
   // Get the package's share directory and append the YAML file path
   std::string package_share_directory =
       ament_index_cpp::get_package_share_directory("pid_maze_solver");
@@ -321,11 +272,31 @@ void PIDMazeSolver::readWaypointsYAML() {
   case 1: // Simulation
     RCLCPP_INFO(this->get_logger(), "Welcome to Simulation!");
     waypoint_file_name = "waypoints_sim.yaml";
+
+    /* https://husarion.com/manuals/rosbot-xl/
+    Maximum translational velocity = 0.8 m/s
+    Maximum rotational velocity = 180 deg/s (3.14 rad/s)
+    */
+    max_velocity_ = 0.8;
+    max_ang_velocity_ = 3.14;
+    pid_x_ = PID(2.0, 0.05, 0.3, time_step);
+    pid_y_ = PID(2.0, 0.05, 0.5, time_step);
+    pid_z_ = PID(2.0, 0.01, 0.30, time_step);
     break;
 
   case 2: // CyberWorld
     RCLCPP_INFO(this->get_logger(), "Welcome to CyberWorld!");
     waypoint_file_name = "waypoints_real.yaml";
+
+    /* https://husarion.com/manuals/rosbot-xl/
+    Maximum translational velocity = 0.8 m/s
+    Maximum rotational velocity = 180 deg/s (3.14 rad/s)
+    */
+    max_velocity_ = 0.35;
+    max_ang_velocity_ = 1.5;
+    pid_x_ = PID(2.0, 0.05, 0.3, time_step);
+    pid_y_ = PID(2.0, 0.05, 0.5, time_step);
+    pid_z_ = PID(2.0, 0.01, 0.30, time_step);
     break;
 
   default:
