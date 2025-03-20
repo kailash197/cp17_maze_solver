@@ -223,9 +223,6 @@ void PIDMazeSolver::pid_controller() {
       // Calculate distance to the target
       distance = std::sqrt(std::pow(pid_x_.getError(), 2) +
                            std::pow(pid_y_.getError(), 2));
-      RCLCPP_DEBUG(this->get_logger(), "Distance to target: %.2f", distance);
-      RCLCPP_DEBUG(this->get_logger(), "Position: %.2f,%.2f,%.2f", u_x, u_y,
-                   u_z);
 
       // Prepare and publish the twist message
       auto twist_v = velocity2twist(u_z, u_x, u_y);
@@ -234,6 +231,11 @@ void PIDMazeSolver::pid_controller() {
       twist.linear.y = capped_velocities[1];
       twist.angular.z = capped_velocities[2];
       cmd_vel_publisher_->publish(twist);
+      RCLCPP_DEBUG(this->get_logger(), "Distance to target: %.2f", distance);
+      RCLCPP_DEBUG(this->get_logger(), "Vel: %.2f,%.2f,%.2f", u_x, u_y, u_z);
+      RCLCPP_DEBUG(this->get_logger(), "Twist: %.2f,%.2f,%.2f",
+                   capped_velocities[0], capped_velocities[1],
+                   capped_velocities[2]);
 
       rate.sleep();            // Maintain loop frequency
     } while (distance > 0.01); // Run until distance is within tolerance
@@ -245,6 +247,8 @@ void PIDMazeSolver::pid_controller() {
     twist.angular.z = 0.0;
     cmd_vel_publisher_->publish(twist);
     std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    // Reset PID for new waypoints
     pid_x_.reset_();
     pid_y_.reset_();
     pid_z_.reset_();
@@ -303,8 +307,8 @@ void PIDMazeSolver::readWaypointsYAML() {
     RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
   }
 
-  RCLCPP_INFO(this->get_logger(), "Waypoint file loaded: %s",
-              waypoint_file_name.c_str());
+  RCLCPP_DEBUG(this->get_logger(), "Waypoint file loaded: %s",
+               waypoint_file_name.c_str());
 
   std::string yaml_file_path =
       package_share_directory + "/waypoints/" + waypoint_file_name;
