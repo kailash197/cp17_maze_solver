@@ -18,8 +18,13 @@ public:
   PID(double kp, double ki, double kd, double dt)
       : kp_(kp), ki_(ki), kd_(kd), dt_(dt), integral_(0.0), prev_error_(0.0) {}
 
-  double compute(double setpoint, double measurement) {
+  double compute(double setpoint, double measurement, bool is_angular = false) {
     double error = setpoint - measurement;
+
+    if (is_angular) {
+      error = atan2(sin(error), cos(error)); // Normalize error to [-pi, pi]
+    }
+
     integral_ += error * dt_;
     double max_integral = 1.0; // Adjust this value as needed
     if (integral_ > max_integral)
@@ -162,7 +167,6 @@ std::vector<double> PIDMazeSolver::velocity2twist(double vx, double vy,
   // Convert Eigen::Vector3d to std::vector<double>
   return std::vector<double>{twist(0), twist(1), twist(2)};
 }
-
 void PIDMazeSolver::pid_controller() {
   double u_x, u_y, u_z;
   std::vector<double> capped_velocities;
@@ -200,11 +204,15 @@ void PIDMazeSolver::pid_controller() {
         rclcpp::shutdown();
         return;
       }
-      // PID calculation for Angle
-      u_z = pid_z_.compute(sp_phi, phi);
 
-      // Calculate error to the target
-      error = normalize_angle(pid_z_.getError());
+      // Calculate error for yaw, accounting for wrap-around
+      double error_yaw = normalize_angle(sp_phi - phi);
+
+      // PID calculation for Angle
+      u_z = pid_z_.compute(sp_phi, phi, true);
+
+      // Use the normalized error for logging and control
+      error = error_yaw;
       RCLCPP_DEBUG(this->get_logger(),
                    "phi: %.3f, sp_phi, %.3f, target: %.3f rad", phi, sp_phi,
                    error);
@@ -234,7 +242,7 @@ void PIDMazeSolver::pid_controller() {
       // PID calculation
       u_x = pid_x_.compute(sp_x, current_position_.x);
       u_y = pid_y_.compute(sp_y, current_position_.y);
-      u_z = pid_z_.compute(sp_phi, phi);
+      u_z = pid_z_.compute(sp_phi, phi, true);
 
       // Calculate distance to the target
       distance = std::sqrt(std::pow(pid_x_.getError(), 2) +
