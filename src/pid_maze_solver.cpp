@@ -327,6 +327,26 @@ void PIDMazeSolver::readWaypointsYAML() {
     pid_z_ = PID(2.0, 0.01, 0.30, time_step);
     break;
 
+  case 3: // Simulation Reverse
+    RCLCPP_INFO(this->get_logger(), "Welcome to Simulation Reverse!");
+    waypoint_file_name = "reverse_waypoints_sim.yaml";
+    max_velocity_ = 0.8;
+    max_ang_velocity_ = 3.14;
+    pid_x_ = PID(2.0, 0.05, 0.3, time_step);
+    pid_y_ = PID(2.0, 0.05, 0.5, time_step);
+    pid_z_ = PID(2.0, 0.01, 0.30, time_step);
+    break;
+
+  case 4: // CyberWorld Reverse
+    RCLCPP_INFO(this->get_logger(), "Welcome to CyberWorld Reverse!");
+    waypoint_file_name = "reverse_waypoints_real.yaml";
+    max_velocity_ = 0.35;
+    max_ang_velocity_ = 1.5;
+    pid_x_ = PID(2.0, 0.05, 0.3, time_step);
+    pid_y_ = PID(2.0, 0.05, 0.5, time_step);
+    pid_z_ = PID(2.0, 0.01, 0.30, time_step);
+    break;
+
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
   }
@@ -390,7 +410,7 @@ int main(int argc, char **argv) {
     scene_number = std::atoi(argv[1]);
   }
   // Check if the scene number is valid before creating the node
-  if (scene_number != 1 && scene_number != 2) {
+  if (scene_number < 1 && scene_number > 4) {
     std::cerr << "Error: Invalid Scene Number -- " << scene_number << std::endl;
     rclcpp::shutdown();
     return 1;
