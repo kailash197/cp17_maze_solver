@@ -31,7 +31,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(pid_maze_solver src/pid_maze_solver.cpp)
-ament_target_dependencies(pid_maze_solver rclcpp std_msgs geometry_msgs nav_msgs tf2 yaml-cpp)
+ament_target_dependencies(pid_maze_solver rclcpp std_msgs geometry_msgs nav_msgs tf2 yaml-cpp sensor_msgs)
 target_link_libraries(pid_maze_solver yaml-cpp)
 
 # Install the executable & launch

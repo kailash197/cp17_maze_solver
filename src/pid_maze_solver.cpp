@@ -6,6 +6,7 @@
 #include <geometry_msgs/msg/twist.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2/LinearMath/Quaternion.h>
@@ -67,6 +68,15 @@ private:
   PID pid_linear_, pid_angular_;
   double time_step = 0.01; // in milliseconds
 
+  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr
+      laser_subscriber_;
+  void laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
+  bool check_obstacles();
+  std::vector<float> laser_ranges_;
+  std::array<int, 4> dir_indices;
+  double min_safe_distance_ = 0.20;
+  double angle_increment_;
+
 public:
   PIDMazeSolver(int scene_number);
   ~PIDMazeSolver();
@@ -106,6 +116,43 @@ void PIDMazeSolver::odom_callback(
                phi);
 }
 
+// Function to find index for a given angle and specific points
+int find_index_scan_msg(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg,
+                        double angle) {
+  if (!scan_msg) {
+    RCLCPP_ERROR(rclcpp::get_logger("find_index_scan_msg"),
+                 "Invalid LaserScan message.");
+    return -1;
+  }
+
+  if (angle < scan_msg->angle_min || angle > scan_msg->angle_max) {
+    std::ostringstream error_msg;
+    error_msg << "Angle out of bounds, [" << scan_msg->angle_min << " ,"
+              << scan_msg->angle_max << "]";
+    throw std::invalid_argument(error_msg.str());
+  }
+
+  auto angle_to_index = [&](double ang) -> int {
+    return static_cast<int>((ang - scan_msg->angle_min) /
+                            scan_msg->angle_increment);
+  };
+
+  int temp = angle_to_index(angle);
+  RCLCPP_DEBUG(rclcpp::get_logger("find_index_scan_msg"),
+               "Angle: %f, Index: %d", angle, temp);
+  return temp;
+}
+
+void PIDMazeSolver::laser_callback(
+    const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+  laser_ranges_ = msg->ranges;
+  angle_increment_ = msg->angle_increment;
+  dir_indices[0] = find_index_scan_msg(msg, 0.0);
+  dir_indices[1] = find_index_scan_msg(msg, M_PI / 2);
+  dir_indices[2] = find_index_scan_msg(msg, M_PI);
+  dir_indices[3] = find_index_scan_msg(msg, -M_PI / 2);
+}
+
 PIDMazeSolver::PIDMazeSolver(int scene_number)
     : Node("maze_solver_node"), scene_number_(scene_number) {
   timer_cb_grp_ =
@@ -122,6 +169,11 @@ PIDMazeSolver::PIDMazeSolver(int scene_number)
       std::bind(&PIDMazeSolver::odom_callback, this, std::placeholders::_1),
       options);
 
+  laser_subscriber_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+      "/scan_filtered", 10,
+      std::bind(&PIDMazeSolver::laser_callback, this, std::placeholders::_1),
+      options);
+
   // Based on simulation or real bot
   // Read waypoints from YAML file & update waypoints vector
   // And configure PID controllers
@@ -131,6 +183,28 @@ PIDMazeSolver::PIDMazeSolver(int scene_number)
 
   timer_ = this->create_wall_timer(
       1s, std::bind(&PIDMazeSolver::pid_controller, this), timer_cb_grp_);
+}
+
+bool PIDMazeSolver::check_obstacles() {
+  if (laser_ranges_.empty())
+    return false;
+
+  // Check front
+  int center_index = dir_indices[0];
+
+  int cone_width = 10;
+
+  for (int i = center_index - cone_width; i <= center_index + cone_width; i++) {
+    if (i >= 0 && i < int(laser_ranges_.size()) &&
+        !std::isinf(laser_ranges_[i]) &&
+        laser_ranges_[i] < min_safe_distance_) {
+      RCLCPP_DEBUG(this->get_logger(),
+                   "center_index: %d, index: %d, distance: %.2f", center_index,
+                   i, laser_ranges_[i]);
+      return true;
+    }
+  }
+  return false;
 }
 
 void PIDMazeSolver::pid_controller() {
@@ -197,6 +271,17 @@ void PIDMazeSolver::pid_controller() {
         rclcpp::shutdown();
         return;
       }
+      // Check for obstacles first
+      if (check_obstacles()) {
+        // Stop and avoid obstacle
+        cmd_vel.linear.x = 0.0;
+        cmd_vel.linear.y = 0.0;
+        cmd_vel.angular.z = 0.0; // Simple turn right
+        cmd_vel_publisher_->publish(cmd_vel);
+        rate.sleep();
+        break;
+      }
+
       // Calculate error in global frame
       error_z = target_z - phi;
       error_z =
@@ -217,13 +302,18 @@ void PIDMazeSolver::pid_controller() {
 
       // PID control
       double linear_vel = pid_linear_.compute(distance);
+      linear_vel = std::clamp(linear_vel, -max_velocity_, max_velocity_);
+
       double angular_vel = 0.0;
       if (error_z > 0.007) {
         angular_vel = pid_angular_.compute(error_z);
         angular_vel =
             std::clamp(angular_vel, -max_ang_velocity_, max_ang_velocity_);
       }
-      linear_vel = std::clamp(linear_vel, -max_velocity_, max_velocity_);
+      // Scale down linear velocity when we need to make significant turns
+      if (fabs(angular_vel) > 0.1) {
+        linear_vel *= 0.7; // Reduce speed when correcting course
+      }
 
       cmd_vel.linear.x = direction_x * linear_vel;
       cmd_vel.linear.y = direction_y * linear_vel;
