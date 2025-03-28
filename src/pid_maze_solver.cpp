@@ -396,6 +396,19 @@ void PIDMazeSolver::readWaypointsYAML() {
     waypoint_file_name = "waypoints_real.yaml";
     break;
 
+  case 3: // Simulation Reverse
+    RCLCPP_INFO(this->get_logger(), "Welcome to Simulation Reverse!");
+    waypoint_file_name = "reverse_waypoints_sim.yaml";
+    /* https://husarion.com/manuals/rosbot-xl/
+    Maximum translational velocity = 0.8 m/s
+    Maximum rotational velocity = 180 deg/s (3.14 rad/s)
+    */
+    max_velocity_ = 0.8;
+    max_ang_velocity_ = 3.14;
+    pid_linear_ = PID(1.5, 0.01, 0.1, time_step);
+    pid_angular_ = PID(2.0, 0.01, 0.30, time_step);
+    break;
+
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
   }
