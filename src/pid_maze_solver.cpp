@@ -541,6 +541,21 @@ void PIDMazeSolver::readWaypointsYAML() {
     pid_angular_ = PID(2.0, 0.01, 0.30, time_step);
     break;
 
+  case 4: // CyberWorld Reverse
+    RCLCPP_INFO(this->get_logger(), "Welcome to CyberWorld!");
+    waypoint_file_name = "reverse_waypoints_real.yaml";
+
+    /* https://husarion.com/manuals/rosbot-xl/
+    Maximum translational velocity = 0.8 m/s
+    Maximum rotational velocity = 180 deg/s (3.14 rad/s)
+    */
+    max_velocity_ = 0.20;
+    max_ang_velocity_ = 0.30;
+    pid_linear_ = PID(2.0, 0.05, 0.3, time_step);
+    pid_angular_ = PID(2.0, 0.01, 0.30, time_step);
+    is_simulation = false;
+    break;
+
   default:
     RCLCPP_ERROR(this->get_logger(), "Invalid Scene Number: %d", scene_number_);
   }
