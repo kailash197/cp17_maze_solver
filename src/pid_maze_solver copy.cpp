@@ -18,65 +18,6 @@
 
 using namespace std::chrono_literals;
 
-// Function to normalize angle to the range -pi to pi
-double normalize_angle(double angle) {
-  while (angle > M_PI)
-    angle -= 2.0 * M_PI;
-  while (angle < -M_PI)
-    angle += 2.0 * M_PI;
-  return angle;
-}
-
-double avg_distance(const std::vector<float> &ranges, int start, int end,
-                    float min_valid_range, float max_valid_range) {
-  int count = 0;
-  double distance = 0.0;
-  for (int i = start; i <= end; ++i) {
-    const float range = ranges[i];
-    if (!std::isnan(range) && !std::isinf(range) && range >= min_valid_range &&
-        range <= max_valid_range) {
-      distance += range;
-      count++;
-    }
-  }
-  if (count == 0)
-    return 0.0;
-  return distance / count;
-}
-
-double find_wall_distance(
-    const std::vector<float> &ranges, int half_window_size, int center_index,
-    float min_valid_range = 0.0f,
-    float max_valid_range = std::numeric_limits<float>::infinity()) {
-  // Validate inputs
-  const int length = ranges.size();
-  if (length == 0 || half_window_size <= 0 || center_index < 0 ||
-      center_index >= length) {
-    return 0.0;
-  }
-
-  // Calculate window bounds with wrap-around handling
-  const int start_index = (center_index - half_window_size + length) % length;
-  const int end_index = (center_index + half_window_size) % length;
-  double distance = 0.0;
-
-  if (start_index <= end_index) {
-    // Normal case: window doesn't wrap around
-    distance = avg_distance(ranges, start_index, end_index, min_valid_range,
-                            max_valid_range);
-
-  } else {
-    // Window wraps around the end of the array
-    distance = avg_distance(ranges, start_index, length - 1, min_valid_range,
-                            max_valid_range);
-    distance +=
-        avg_distance(ranges, 0, end_index, min_valid_range, max_valid_range);
-    distance /= 2.0;
-  }
-
-  return distance;
-}
-
 class PID {
 public:
   PID() : kp_(0.0), ki_(0.0), kd_(0.0), dt_(0.0) {}
@@ -112,29 +53,24 @@ struct DirectionIndices {
 };
 
 DirectionIndices
-getDirectionIndices(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg,
-                    double offset_angle = 0.0) {
+getDirectionIndices(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg) {
   DirectionIndices indices;
 
   // Calculate index for front (0 degrees)
-  indices.front = static_cast<int>(
-      (normalize_angle(offset_angle + 0.0) - scan_msg->angle_min) /
-      scan_msg->angle_increment);
+  indices.front =
+      static_cast<int>((0.0 - scan_msg->angle_min) / scan_msg->angle_increment);
 
   // Calculate index for left (90 degrees, π/2 radians)
-  indices.left = static_cast<int>(
-      (normalize_angle(offset_angle + M_PI / 2) - scan_msg->angle_min) /
-      scan_msg->angle_increment);
+  indices.left = static_cast<int>((M_PI / 2 - scan_msg->angle_min) /
+                                  scan_msg->angle_increment);
 
   // Calculate index for right (-90 degrees, -π/2 radians)
-  indices.right = static_cast<int>(
-      (normalize_angle(offset_angle + -M_PI / 2) - scan_msg->angle_min) /
-      scan_msg->angle_increment);
+  indices.right = static_cast<int>((-M_PI / 2 - scan_msg->angle_min) /
+                                   scan_msg->angle_increment);
 
   // Calculate index for behind (180 degrees, π radians)
-  indices.behind = static_cast<int>(
-      (normalize_angle(offset_angle + M_PI) - scan_msg->angle_min) /
-      scan_msg->angle_increment);
+  indices.behind = static_cast<int>((M_PI - scan_msg->angle_min) /
+                                    scan_msg->angle_increment);
 
   // Handle wrap-around for circular LIDAR scans
   const int total_points = scan_msg->ranges.size();
@@ -143,6 +79,36 @@ getDirectionIndices(const sensor_msgs::msg::LaserScan::SharedPtr scan_msg,
   indices.right = (indices.right % total_points + total_points) % total_points;
   indices.behind =
       (indices.behind % total_points + total_points) % total_points;
+
+  return indices;
+}
+
+DirectionIndices getRosbotXLDirectionIndices(
+    const sensor_msgs::msg::LaserScan::SharedPtr scan_msg) {
+  DirectionIndices indices;
+  const int total_points = scan_msg->ranges.size();
+
+  // Adjustments for upside-down mounting
+  indices.front = static_cast<int>((M_PI - scan_msg->angle_min) /
+                                   scan_msg->angle_increment);
+  indices.left = static_cast<int>((3 * M_PI / 2 - scan_msg->angle_min) /
+                                  scan_msg->angle_increment);
+  indices.right = static_cast<int>((M_PI / 2 - scan_msg->angle_min) /
+                                   scan_msg->angle_increment);
+  indices.behind =
+      static_cast<int>((0 - scan_msg->angle_min) / scan_msg->angle_increment);
+
+  // Wrap-around handling
+  indices.front %= total_points;
+  indices.left %= total_points;
+  indices.right %= total_points;
+  indices.behind %= total_points;
+
+  // Ensure positive indices
+  indices.front = (indices.front + total_points) % total_points;
+  indices.left = (indices.left + total_points) % total_points;
+  indices.right = (indices.right + total_points) % total_points;
+  indices.behind = (indices.behind + total_points) % total_points;
 
   return indices;
 }
@@ -178,14 +144,11 @@ private:
   void laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg);
   bool check_obstacles_pid(int index);
   std::vector<float> laser_ranges_;
-  double min_safe_distance_ = 0.23;
-  double left_target_distance_;
-  double back_target_distance_;
-  double angle_min_, angle_increment_, range_min_, range_max_;
-  double laser_scanner_offset_ = M_PI; // Scanner is rotated 180.
+  double min_safe_distance_ = 0.20;
+  double angle_increment_, range_min_, range_max_;
   DirectionIndices direction_indices_;
   bool first_run_ = true;
-  void set_robot_position_to_start();
+  bool is_simulation = true;
   void publish_vel_(double linx, double liny, double angz) {
     geometry_msgs::msg::Twist msg;
     msg.linear.x = linx;
@@ -204,33 +167,34 @@ PIDMazeSolver::~PIDMazeSolver() {
   RCLCPP_INFO(this->get_logger(), "Maze Solver Terminated.");
 }
 
-/**
- * @brief Count obstacle points in a range of indices
- * @return Number of obstacle points found
- */
-int count_obstacles(const std::vector<float> &ranges, int start, int end,
-                    double threshold, float min_valid_range,
-                    float max_valid_range) {
+// Function to normalize angle to the range -pi to pi
+double normalize_angle(double angle) {
+  while (angle > M_PI)
+    angle -= 2.0 * M_PI;
+  while (angle < -M_PI)
+    angle += 2.0 * M_PI;
+  return angle;
+}
+
+double avg_distance(const std::vector<float> &ranges, int start, int end,
+                    float min_valid_range, float max_valid_range) {
   int count = 0;
+  double distance = 0.0;
   for (int i = start; i <= end; ++i) {
     const float range = ranges[i];
     if (!std::isnan(range) && !std::isinf(range) && range >= min_valid_range &&
-        range <= max_valid_range && range < threshold) {
+        range <= max_valid_range) {
+      distance += range;
       count++;
     }
   }
-  return count;
+  return round(distance / count, 2);
 }
 
-/**
- * @brief Check for obstacles in a specified window around a center index
- * @return True if obstacle detected, false otherwise
- */
-bool check_obstacles(
+bool find_wall_distance(
     const std::vector<float> &ranges, int half_window_size, int center_index,
-    double threshold, float min_valid_range = 0.0f,
-    float max_valid_range = std::numeric_limits<float>::infinity(),
-    int required_points = 5) {
+    float min_valid_range = 0.0f,
+    float max_valid_range = std::numeric_limits<float>::infinity()) {
   // Validate inputs
   const int length = ranges.size();
   if (length == 0 || half_window_size <= 0 || center_index < 0 ||
@@ -241,21 +205,22 @@ bool check_obstacles(
   // Calculate window bounds with wrap-around handling
   const int start_index = (center_index - half_window_size + length) % length;
   const int end_index = (center_index + half_window_size) % length;
-  int counter = 0;
+  double distance = 0.0;
 
   if (start_index <= end_index) {
     // Normal case: window doesn't wrap around
-    counter = count_obstacles(ranges, start_index, end_index, threshold,
-                              min_valid_range, max_valid_range);
+    distance = avg_distance(ranges, start_index, end_index, min_valid_range,
+                            max_valid_range);
   } else {
     // Window wraps around the end of the array
-    counter = count_obstacles(ranges, start_index, length - 1, threshold,
-                              min_valid_range, max_valid_range);
-    counter += count_obstacles(ranges, 0, end_index, threshold, min_valid_range,
-                               max_valid_range);
+    distance = avg_distance(ranges, start_index, length - 1, min_valid_range,
+                            max_valid_range);
+    distance +=
+        avg_distance(ranges, 0, end_index, min_valid_range, max_valid_range);
+    distance /= 2.0;
   }
 
-  return counter >= required_points;
+  return distance;
 }
 
 void PIDMazeSolver::odom_callback(
@@ -283,16 +248,24 @@ void PIDMazeSolver::laser_callback(
     const sensor_msgs::msg::LaserScan::SharedPtr msg) {
   laser_ranges_ = msg->ranges;
   if (first_run_) {
-    angle_min_ = msg->angle_min;
     angle_increment_ = msg->angle_increment;
     range_min_ = msg->range_min;
     range_max_ = msg->range_max;
-    direction_indices_ = getDirectionIndices(msg, laser_scanner_offset_);
+    if (is_simulation) {
+      direction_indices_ = getDirectionIndices(msg);
+    } else {
+      direction_indices_ = getRosbotXLDirectionIndices(msg);
+    }
+
     first_run_ = false;
-    RCLCPP_DEBUG(this->get_logger(), "Dir indices: [%d, %d, %d, %d], size: %zu",
-                 direction_indices_.front, direction_indices_.left,
-                 direction_indices_.behind, direction_indices_.right,
-                 laser_ranges_.size());
+    // dir_indices[0] = 0;
+    // dir_indices[1] = 178;
+    // dir_indices[2] = 358;
+    // dir_indices[3] = 540;
+    RCLCPP_INFO(this->get_logger(), "Dir indices: %d, %d, %d, %d",
+                direction_indices_.front, direction_indices_.left,
+                direction_indices_.behind, direction_indices_.right);
+    // Position the robot
   }
 }
 
@@ -333,80 +306,54 @@ bool PIDMazeSolver::check_obstacles_pid(int ind) {
                          range_max_, 5);
 }
 
-void PIDMazeSolver::set_robot_position_to_start() {
-  rclcpp::Rate rate(int(1 / time_step)); // Control loop frequency
-  double error = 10.0;
-  pid_linear_.reset_();
-  while (fabs(error) > 0.01) {
-    double back_distance = find_wall_distance(
-        laser_ranges_, 3, direction_indices_.behind, range_min_, range_max_);
-    error = back_target_distance_ - back_distance;
-    auto linear_vel_x = pid_linear_.compute(error);
-    linear_vel_x = std::clamp(linear_vel_x, -max_velocity_, max_velocity_);
-    RCLCPP_DEBUG(this->get_logger(), "Back: %.2f, Vel: %.2f", back_distance,
-                 linear_vel_x);
-    publish_vel_(linear_vel_x, 0.0, 0.0);
-    rate.sleep();
-  }
-  publish_vel_(0.0, 0.0, 0.0);
-
-  pid_linear_.reset_();
-  error = 10.0;
-  while (fabs(error) > 0.01) {
-    double left_distance = find_wall_distance(
-        laser_ranges_, 3, direction_indices_.left, range_min_, range_max_);
-    error = left_distance - left_target_distance_;
-    auto linear_vel_y = pid_linear_.compute(error);
-    linear_vel_y = std::clamp(linear_vel_y, -max_velocity_, max_velocity_);
-    RCLCPP_DEBUG(this->get_logger(), "Left: %.2f, Vel: %.2f", left_distance,
-                 linear_vel_y);
-    publish_vel_(0.0, linear_vel_y, 0.0);
-    rate.sleep();
-  }
-  publish_vel_(0.0, 0.0, 0.0);
-  RCLCPP_INFO(this->get_logger(), "Robot position set to start");
-}
-
 void PIDMazeSolver::pid_controller() {
-
-  // Step 0: Position to Start
-  set_robot_position_to_start();
-
+  geometry_msgs::msg::Twist cmd_vel;
   RCLCPP_INFO(this->get_logger(), "Trajectory started.");
 
   // Loop through each waypoint
   int index = 0;
   for (const auto &waypoint : waypoints_) {
-    rclcpp::Rate rate(int(1 / time_step)); // Control loop frequency
-    RCLCPP_INFO(this->get_logger(), "WP%u: [%.2f, %.2f, %.2f]", ++index,
-                waypoint[0], waypoint[1], waypoint[2]);
-    // Step 1. Turn only
     pid_linear_.reset_();
     pid_angular_.reset_();
+
+    rclcpp::Rate rate(int(1 / time_step)); // Control loop frequency
+
+    RCLCPP_INFO(this->get_logger(), "WP%u: [%.2f, %.2f, %.2f]", ++index,
+                waypoint[0], waypoint[1], waypoint[2]);
+
+    // Step 1. Turn only
     double error_z = std::numeric_limits<double>::max();
+    cmd_vel.linear.x = 0.0;
+    cmd_vel.linear.y = 0.0;
     double target_z = normalize_angle(phi + waypoint[2]);
-    double angular_vel;
-    while (rclcpp::ok() && fabs(error_z) > 0.007) {
+    while (fabs(error_z) > 0.007) {
+      if (!rclcpp::ok()) { // Check if ROS is still running
+        RCLCPP_WARN(this->get_logger(), "Trajectory Canceled.");
+        timer_->cancel();         // Stop the timer
+        odom_subscriber_.reset(); // Kill the odometry subscription
+        rclcpp::shutdown();
+        return;
+      }
 
       // Calculate error
       error_z = target_z - phi;
       error_z =
           atan2(sin(error_z), cos(error_z)); // Normalize error to [-pi, pi]
-      RCLCPP_DEBUG(this->get_logger(), "Angle to target: %.4f", error_z);
+      RCLCPP_DEBUG(this->get_logger(), "Angle to target: %.2f", error_z);
 
       // PID control
       double angular_vel = pid_angular_.compute(error_z);
       angular_vel =
           std::clamp(angular_vel, -max_ang_velocity_, max_ang_velocity_);
-
-      RCLCPP_DEBUG(this->get_logger(), "Angular vel: %.3f", angular_vel);
-      publish_vel_(0.0, 0.0, angular_vel);
+      cmd_vel.angular.z = angular_vel;
+      cmd_vel_publisher_->publish(cmd_vel);
+      RCLCPP_DEBUG(this->get_logger(), "Angular vel: %.3f", cmd_vel.angular.z);
 
       rate.sleep(); // Maintain loop frequency
     }
     // Now stop the bot
-    pid_angular_.reset_();
-    publish_vel_(0.0, 0.0, 0.0);
+    cmd_vel.angular.z = 0.0;
+    cmd_vel_publisher_->publish(cmd_vel);
 
     // Step 2. Move while adjusting direction
     // Transform waypoint to global frame
@@ -415,9 +362,19 @@ void PIDMazeSolver::pid_controller() {
     double target_x = current_position_.x + dx;
     double target_y = current_position_.y + dy;
     double distance = std::numeric_limits<double>::max();
+    while (distance > 0.01) {
+      if (!rclcpp::ok()) { // Check if ROS is still running
+        RCLCPP_WARN(this->get_logger(), "Trajectory Canceled.");
+        timer_->cancel();         // Stop the timer
+        odom_subscriber_.reset(); // Kill the odometry subscription
+        rclcpp::shutdown();
+        return;
+      }
 
-    while (rclcpp::ok() && distance > 0.01) {
-
+      // Calculate error in global frame
+      error_z = target_z - phi;
+      error_z =
+          atan2(sin(error_z), cos(error_z)); // Normalize error to [-pi, pi]
       double error_x = target_x - current_position_.x;
       double error_y = target_y - current_position_.y;
       distance = std::hypot(error_x, error_y);
@@ -430,64 +387,64 @@ void PIDMazeSolver::pid_controller() {
       double direction_x = robot_frame_x / distance;
       double direction_y = robot_frame_y / distance;
       RCLCPP_DEBUG(this->get_logger(), "Distance to target: %.2f", distance);
+      RCLCPP_DEBUG(this->get_logger(), "Angle to target: %.2f", error_z);
 
       // PID control
       double linear_vel = pid_linear_.compute(distance);
       linear_vel = std::clamp(linear_vel, -max_velocity_, max_velocity_);
-      double linear_vel_x = direction_x * linear_vel;
-      double linear_vel_y = direction_y * linear_vel;
 
-      // check for obstacles
-      //   double obstacle_force_x = 0.0, obstacle_force_y = 0.0;
-      //   double curr_angle, curr_dist_;
-      //   double obstacle_gain = 0.75;
-      //   for (size_t i = 0; i < laser_ranges_.size(); i++) {
-      //     curr_dist_ = laser_ranges_[i];
-      //     if (!std::isnan(curr_dist_) && !std::isinf(curr_dist_) &&
-      //         curr_dist_ >= range_min_ && curr_dist_ <= range_max_ &&
-      //         curr_dist_ < min_safe_distance_) {
-      //       curr_angle = normalize_angle(angle_min_ + i * angle_increment_ -
-      //                                    laser_scanner_offset_);
-      //       double force_magnitude = obstacle_gain / (curr_dist_ + 0.1);
-      //       obstacle_force_x -= force_magnitude * cos(curr_angle);
-      //       obstacle_force_y -= force_magnitude * sin(curr_angle);
+      double angular_vel = 0.0;
+      if (error_z > 0.007) {
+        angular_vel = pid_angular_.compute(error_z);
+        angular_vel =
+            std::clamp(angular_vel, -max_ang_velocity_, max_ang_velocity_);
+        cmd_vel.linear.x = 0.0;
+        cmd_vel.angular.z = angular_vel;
+        cmd_vel_publisher_->publish(cmd_vel);
+      }
+      // Scale down linear velocity when we need to make significant turns
+      if (fabs(angular_vel) > 0.1) {
+        linear_vel *= 0.7; // Reduce speed when correcting course
+      }
 
-      //       // Combine with original velocity
-      //       linear_vel_x += obstacle_force_x;
-      //       linear_vel_y += obstacle_force_y;
-      //     }
+      cmd_vel.linear.x = direction_x * linear_vel;
+      cmd_vel.linear.y = direction_y * linear_vel;
+      cmd_vel.angular.z = 0;
+
+      // Check for obstacles
+      //   if (check_obstacles_pid(direction_indices_.front) &&
+      //       cmd_vel.linear.x > 0) {
+      //     cmd_vel.linear.x = 0.0;
+      //     publish_vel_(-0.1, 0.0, 0.0);
+      //     RCLCPP_INFO(this->get_logger(), "Obstacle detected: Front");
+      //   } else if (check_obstacles_pid(direction_indices_.left) &&
+      //              cmd_vel.linear.y > 0) {
+      //     cmd_vel.linear.y = 0.0;
+      //     publish_vel_(0.0, -0.1, 0.0);
+      //     RCLCPP_INFO(this->get_logger(), "Obstacle detected: Left");
+      //   } else if (check_obstacles_pid(direction_indices_.behind) &&
+      //              cmd_vel.linear.x < 0) {
+      //     cmd_vel.linear.x = 0.0;
+      //     publish_vel_(0.1, 0.0, 0.0);
+      //     RCLCPP_INFO(this->get_logger(), "Obstacle detected: Behind");
+      //   } else if (check_obstacles_pid(direction_indices_.right) &&
+      //              cmd_vel.linear.y < 0) {
+      //     cmd_vel.linear.y = 0.0;
+      //     publish_vel_(0.0, 0.1, 0.0);
+      //     RCLCPP_INFO(this->get_logger(), "Obstacle detected: Right");
       //   }
 
-      // Check orientation
-      // Calculate error in global frame
-      error_z = target_z - phi;
-      error_z = atan2(sin(error_z), cos(error_z));
-      RCLCPP_DEBUG(this->get_logger(), "Angle to target: %.4f", error_z);
+      cmd_vel_publisher_->publish(cmd_vel);
 
-      angular_vel = pid_angular_.compute(error_z);
-      angular_vel =
-          std::clamp(angular_vel, -max_ang_velocity_, max_ang_velocity_);
-      //   if (fabs(error_z) > 0.05) {
-      //     publish_vel_(0.0, 0.0, angular_vel);
-      //   }
-
-      RCLCPP_DEBUG(this->get_logger(), "Twist: %.2f, %.2f, %.2f", linear_vel_x,
-                   linear_vel_y, angular_vel);
-      publish_vel_(linear_vel_x, linear_vel_y, angular_vel);
       rate.sleep();
     }
 
     // Now stop the bot
-    publish_vel_(0.0, 0.0, 0.0);
+    cmd_vel.linear.x = 0.0;
+    cmd_vel.linear.y = 0.0;
+    cmd_vel.angular.z = 0.0;
+    cmd_vel_publisher_->publish(cmd_vel);
     std::this_thread::sleep_for(std::chrono::seconds(1));
-
-    if (!rclcpp::ok()) {
-      RCLCPP_INFO(this->get_logger(), "Trajectory aborted.");
-      timer_->cancel();         // Stop the timer
-      odom_subscriber_.reset(); // Kill the odometry subscription
-      rclcpp::shutdown();
-      return;
-    }
   }
 
   RCLCPP_INFO(this->get_logger(), "Trajectory completed.");
@@ -546,10 +503,8 @@ void PIDMazeSolver::readWaypointsYAML() {
     */
     max_velocity_ = 0.8;
     max_ang_velocity_ = 3.14;
-    pid_linear_ = PID(1.5, 0.05, 0.1, time_step);
+    pid_linear_ = PID(1.5, 0.01, 0.1, time_step);
     pid_angular_ = PID(2.0, 0.01, 0.30, time_step);
-    left_target_distance_ = 0.26;
-    back_target_distance_ = 0.23;
     break;
 
   case 2: // CyberWorld
@@ -561,12 +516,10 @@ void PIDMazeSolver::readWaypointsYAML() {
     Maximum rotational velocity = 180 deg/s (3.14 rad/s)
     */
     max_velocity_ = 0.20;
-    max_ang_velocity_ = 0.50;
-    time_step = 0.1; // 10hz as odom is 20hz
-    pid_linear_ = PID(0.25, 0.01, 0.30, time_step);
-    pid_angular_ = PID(0.25, 0.01, 0.30, time_step);
-    left_target_distance_ = 0.25;
-    back_target_distance_ = 0.30;
+    max_ang_velocity_ = 0.30;
+    pid_linear_ = PID(2.0, 0.05, 0.3, time_step);
+    pid_angular_ = PID(2.0, 0.01, 0.30, time_step);
+    is_simulation = false;
     break;
 
   case 3: // Simulation Reverse
@@ -591,12 +544,10 @@ void PIDMazeSolver::readWaypointsYAML() {
     Maximum rotational velocity = 180 deg/s (3.14 rad/s)
     */
     max_velocity_ = 0.20;
-    max_ang_velocity_ = 0.50;
-    time_step = 0.1; // 10hz as odom is 20hz
-    pid_linear_ = PID(0.25, 0.01, 0.30, time_step);
-    pid_angular_ = PID(0.25, 0.01, 0.30, time_step);
-    left_target_distance_ = 0.25;
-    back_target_distance_ = 0.30;
+    max_ang_velocity_ = 0.30;
+    pid_linear_ = PID(2.0, 0.05, 0.3, time_step);
+    pid_angular_ = PID(2.0, 0.01, 0.30, time_step);
+    is_simulation = false;
     break;
 
   default:
